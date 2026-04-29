@@ -1,13 +1,13 @@
-# Huffman Coding Compressor/Decompressor 🌳💾
+# Huffman Coding Compressor/Decompressor
 
 Implementation of the Huffman Coding for lossless data compression and decompression. It was developed as a university assignment to demostrate fundamental concepts of data compression algorithms and tree data structures.
 
-## Features ✨
+## Features
 
 1. **Compress File:** Takes an input text file, applies Huffman coding to it, and generates a compressed binary output.
 2. **Decompress File:** Takes a compresed Huffman-encoded file and reconstructs the original text file.
 
-## How Huffman Coding Works (Briefly) 💡
+## How Huffman Coding Works (Briefly)
 
 Huffman coding is a variable-length prefix coding technique. It works by:
 
@@ -17,7 +17,7 @@ Huffman coding is a variable-length prefix coding technique. It works by:
 - Encoding: Replacing each character in the input data with its corresponding Huffman code.
 - Decoding: Using the Huffman tree to read the binary stream and reconstruct the original characters.
 
-## Usage 🔥
+## Usage
 
 You need a C++ compiler to run this.
 
@@ -37,6 +37,6 @@ You need a C++ compiler to run this.
     ./huffman_codec
     ```
 
-## Contributing 🤝🏼
+## Contributing
 
 As this was an university assignment, contributions are not expected. However, if you find bugs or have suggestions for minor improvements (e.g. code clarity, better error handling), feel free to open a pull request.
