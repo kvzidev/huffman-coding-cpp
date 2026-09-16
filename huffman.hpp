@@ -1,7 +1,6 @@
 #ifndef HUFFMAN_H
 #define HUFFMAN_H
 
-#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <list>
@@ -98,6 +97,14 @@ void destroyTree(HuffmanTreeNode* node) {
   delete node;
 }
 
+void insertSorted(std::list<HuffmanTreeNode*>& list, HuffmanTreeNode* node) {
+  auto it = list.begin();
+  while (it != list.end() && (*it)->freq < node->freq) {
+    it++;
+  }
+  list.insert(it, node);
+}
+
 // ============================================================================================================
 // = COMPRESSION
 // ==============================================================================================
@@ -136,12 +143,7 @@ std::list<HuffmanTreeNode*> fOrderedList(std::vector<InfoByte>& arr) {
     if (arr[i].n > 0) {
       uint8_t symbol = i;
       HuffmanTreeNode* node = new HuffmanTreeNode(symbol, arr[i].n);
-      auto it = std::upper_bound(
-          list.begin(), list.end(), node,
-          [](const HuffmanTreeNode* left, const HuffmanTreeNode* right) {
-            return left->freq < right->freq;
-          });
-      list.insert(it, node);
+      insertSorted(list, node);
     }
   }
 
@@ -169,12 +171,7 @@ HuffmanTreeNode* fListToTree(std::list<HuffmanTreeNode*> list) {
         new HuffmanTreeNode('\0', node1->freq + node2->freq, node1, node2);
 
     // Insert the new node back into the list, maintaining the order
-    auto it = std::upper_bound(
-        list.begin(), list.end(), newNode,
-        [](const HuffmanTreeNode* left, const HuffmanTreeNode* right) {
-          return left->freq < right->freq;
-        });
-    list.insert(it, newNode);
+    insertSorted(list, newNode);
   }
 
   // Return the last node in the list as the root of the tree
