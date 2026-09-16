@@ -4,7 +4,7 @@
 #include "huffman.hpp"
 #include "progress.hpp"
 
-int main(int argc, char const *argv[]) {
+int main() {
   std::string path;
   bool fileExists = false;
 
@@ -14,7 +14,7 @@ int main(int argc, char const *argv[]) {
     std::getline(std::cin, path);
 
     // Check if file exists
-    FILE *f = fopen(path.c_str(), "r");
+    FILE* f = fopen(path.c_str(), "r");
     if (f != nullptr) {
       fileExists = true;
       fclose(f);

@@ -2,6 +2,7 @@
 #define HUFFMAN_H
 
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <list>
 #include <vector>
@@ -21,16 +22,16 @@ struct InfoByte {
 struct HuffmanTreeNode {
   uint8_t symbol;
   uint64_t freq;
-  HuffmanTreeNode *left;
-  HuffmanTreeNode *right;
+  HuffmanTreeNode* left;
+  HuffmanTreeNode* right;
 
   HuffmanTreeNode() : symbol('\0'), freq(0), left(nullptr), right(nullptr) {};
   HuffmanTreeNode(uint8_t symbol, uint64_t freq,
-                  HuffmanTreeNode *left = nullptr,
-                  HuffmanTreeNode *right = nullptr)
+                  HuffmanTreeNode* left = nullptr,
+                  HuffmanTreeNode* right = nullptr)
       : symbol(symbol), freq(freq), left(left), right(right) {};
 
-  bool operator<(const HuffmanTreeNode &other) const {
+  bool operator<(const HuffmanTreeNode& other) const {
     return freq < other.freq;
   }
 };
@@ -45,13 +46,13 @@ struct HuffmanTreeInfo {
 
 class BitWriter {
  private:
-  FILE *&outputFile;
+  FILE*& outputFile;
   uint8_t buffer;
   int count;
   uint32_t bitLength;
 
  public:
-  BitWriter(FILE *&outputFile)
+  BitWriter(FILE*& outputFile)
       : outputFile(outputFile), buffer(0), count(0), bitLength(0) {}
 
   void writeBit(bool bit) {
@@ -80,12 +81,24 @@ class BitWriter {
 };
 
 // ============================================================================================================
+// = UTILS
+// ==============================================================================================
+// ============================================================================================================
+
+void destroyTree(HuffmanTreeNode* node) {
+  if (!node) return;
+  destroyTree(node->left);
+  destroyTree(node->right);
+  delete node;
+}
+
+// ============================================================================================================
 // = COMPRESSION
 // ==============================================================================================
 // ============================================================================================================
 
-bool fByteCounter(std::string &path, std::vector<InfoByte> &arr) {
-  FILE *f = fopen(path.c_str(), "r+b");
+bool fByteCounter(std::string& path, std::vector<InfoByte>& arr) {
+  FILE* f = fopen(path.c_str(), "r+b");
 
   if (!f) {
     std::cerr << "Failed to open " << path << std::endl;
@@ -111,45 +124,52 @@ bool fByteCounter(std::string &path, std::vector<InfoByte> &arr) {
   return 0;
 }
 
-std::list<HuffmanTreeNode> *fOrderedList(std::vector<InfoByte> &arr) {
-  std::list<HuffmanTreeNode> *list = new std::list<HuffmanTreeNode>();
-  for (int i = 0; i < arr.size(); i++) {
+std::list<HuffmanTreeNode*> fOrderedList(std::vector<InfoByte>& arr) {
+  std::list<HuffmanTreeNode*> list = std::list<HuffmanTreeNode*>();
+  for (size_t i = 0; i < arr.size(); i++) {
     if (arr[i].n > 0) {
       uint8_t symbol = i;
-      HuffmanTreeNode node = HuffmanTreeNode(symbol, arr[i].n);
-      auto it = std::upper_bound(list->begin(), list->end(), node);
-      list->insert(it, node);
+      HuffmanTreeNode* node = new HuffmanTreeNode(symbol, arr[i].n);
+      auto it = std::upper_bound(
+          list.begin(), list.end(), node,
+          [](const HuffmanTreeNode* left, const HuffmanTreeNode* right) {
+            return left->freq < right->freq;
+          });
+      list.insert(it, node);
     }
   }
 
   return list;
 }
 
-HuffmanTreeNode *fListToTree(std::list<HuffmanTreeNode> *list) {
+HuffmanTreeNode* fListToTree(std::list<HuffmanTreeNode*> list) {
   // Loop until there is only one node left in the list
-  while (list->size() > 1) {
+  while (list.size() > 1) {
     // Pop the first two nodes from the list
-    HuffmanTreeNode *node1 = new HuffmanTreeNode(list->front());
-    list->pop_front();
-    HuffmanTreeNode *node2 = new HuffmanTreeNode(list->front());
-    list->pop_front();
+    HuffmanTreeNode* node1 = list.front();
+    list.pop_front();
+    HuffmanTreeNode* node2 = list.front();
+    list.pop_front();
 
     // Create a new node with the sum of the frequencies of node1 and node2
-    HuffmanTreeNode newNode =
-        HuffmanTreeNode('\0', node1->freq + node2->freq, node1, node2);
+    HuffmanTreeNode* newNode =
+        new HuffmanTreeNode('\0', node1->freq + node2->freq, node1, node2);
 
     // Insert the new node back into the list, maintaining the order
-    auto it = std::upper_bound(list->begin(), list->end(), newNode);
-    list->insert(it, newNode);
+    auto it = std::upper_bound(
+        list.begin(), list.end(), newNode,
+        [](const HuffmanTreeNode* left, const HuffmanTreeNode* right) {
+          return left->freq < right->freq;
+        });
+    list.insert(it, newNode);
   }
 
   // Return the last node in the list as the root of the tree
-  HuffmanTreeNode *root = new HuffmanTreeNode(list->front());
-  return root;
+  return list.front();
 }
 
-bool _fGenerateHuffmanCode(HuffmanTreeNode *node, std::vector<bool> &code,
-                           std::vector<InfoByte> &arr) {
+bool _fGenerateHuffmanCode(HuffmanTreeNode* node, std::vector<bool>& code,
+                           std::vector<InfoByte>& arr) {
   if (!node) return false;
 
   // Leaf
@@ -172,7 +192,7 @@ bool _fGenerateHuffmanCode(HuffmanTreeNode *node, std::vector<bool> &code,
   return true;
 }
 
-bool fGenerateHuffmanCode(HuffmanTreeNode *&root, std::vector<InfoByte> &arr) {
+bool fGenerateHuffmanCode(HuffmanTreeNode*& root, std::vector<InfoByte>& arr) {
   std::vector<bool> code;
 
   if (!root) return false;
@@ -182,13 +202,13 @@ bool fGenerateHuffmanCode(HuffmanTreeNode *&root, std::vector<InfoByte> &arr) {
   return true;
 }
 
-void fWriteHeader(FILE *&outputFile, std::vector<InfoByte> &arr) {
+void fWriteHeader(FILE*& outputFile, std::vector<InfoByte>& arr) {
   // Write the array size
   int arraysize = arr.size();
   fwrite(&arraysize, sizeof(int), 1, outputFile);
 
   // Write the frequency table to the output file in binary format
-  for (int i = 0; i < arr.size(); i++) {
+  for (size_t i = 0; i < arr.size(); i++) {
     fwrite(&arr[i].symbol, sizeof(uint8_t), 1, outputFile);
     fwrite(&arr[i].n, sizeof(uint64_t), 1, outputFile);
     fwrite(&arr[i].vsize, sizeof(uint64_t), 1, outputFile);
@@ -199,24 +219,24 @@ void fWriteHeader(FILE *&outputFile, std::vector<InfoByte> &arr) {
       fwrite(&v, sizeof(v), 1, outputFile);
       continue;
     }
-    for (int j = 0; j < arr[i].vsize; j++) {
+    for (uint64_t j = 0; j < arr[i].vsize; j++) {
       bool b = arr[i].code[j];
       fwrite(&b, sizeof(bool), 1, outputFile);
     }
   }
 }
 
-void fSaveCompressedFile(std::string &path, std::vector<InfoByte> &arr) {
+void fSaveCompressedFile(std::string& path, std::vector<InfoByte>& arr) {
   std::string outputPath = path + ".huf";
 
-  FILE *inputFile = fopen(path.c_str(), "r+b");
+  FILE* inputFile = fopen(path.c_str(), "r+b");
 
   if (inputFile == nullptr) {
     std::cerr << "Failed to open input file." << std::endl;
     return;
   }
 
-  FILE *outputFile = fopen(outputPath.c_str(), "w+b");
+  FILE* outputFile = fopen(outputPath.c_str(), "w+b");
   if (outputFile == nullptr) {
     std::cerr << "Failed to output input file." << std::endl;
     return;
@@ -258,7 +278,7 @@ void fSaveCompressedFile(std::string &path, std::vector<InfoByte> &arr) {
   fclose(outputFile);
 }
 
-void fCompress(std::string &path, void (*fDisplayProgress)(int)) {
+void fCompress(std::string& path, void (*fDisplayProgress)(int)) {
   // Declaring the array for the bytes
   std::vector<InfoByte> arr;
 
@@ -268,19 +288,18 @@ void fCompress(std::string &path, void (*fDisplayProgress)(int)) {
   fDisplayProgress(20);  // Step 1 of 5
 
   // Step 2: Create a list and order it
-  std::list<HuffmanTreeNode> *list = fOrderedList(arr);
+  std::list<HuffmanTreeNode*> list = fOrderedList(arr);
 
   fDisplayProgress(40);  // Step 2 of 5
 
   // Step 3: Convert the list into a tree
-  HuffmanTreeNode *root = fListToTree(list);
-  free(list);
+  HuffmanTreeNode* root = fListToTree(list);
 
   fDisplayProgress(60);  // Step 3 of 5
 
   // Step 4: Go through the tree and save each code inside an array
   fGenerateHuffmanCode(root, arr);
-  free(root);
+  destroyTree(root);
 
   fDisplayProgress(80);  // Step 4 of 5
 
@@ -296,7 +315,7 @@ void fCompress(std::string &path, void (*fDisplayProgress)(int)) {
 // ============================================================================================
 // ============================================================================================================
 
-void fRebuildTree(FILE *&f, HuffmanTreeNode *&root) {
+void fRebuildTree(FILE*& f, HuffmanTreeNode*& root) {
   int arraysize;
   fread(&arraysize, sizeof(int), 1, f);
 
@@ -317,17 +336,17 @@ void fRebuildTree(FILE *&f, HuffmanTreeNode *&root) {
       fread(&v, sizeof(v), 1, f);
       continue;
     }
-    for (int j = 0; j < arr[i].vsize; j++) {
+    for (uint64_t j = 0; j < arr[i].vsize; j++) {
       bool b;
       fread(&b, sizeof(bool), 1, f);
       arr[i].code.push_back(b);
     }
   }
 
-  for (int i = 0; i < arr.size(); i++) {
+  for (size_t i = 0; i < arr.size(); i++) {
     // If it has a frequency
     if (arr[i].n > 0) {
-      HuffmanTreeNode *node = root;
+      HuffmanTreeNode* node = root;
 
       for (size_t j = 0; j < arr[i].code.size(); j++) {
         if (arr[i].code[j]) {
@@ -346,25 +365,38 @@ void fRebuildTree(FILE *&f, HuffmanTreeNode *&root) {
   }
 }
 
-void fReadDecodeCreate(FILE *&f, HuffmanTreeNode *&root, std::string &path) {
+void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path) {
   // Open the output file for writing
-  std::string outputPath = path.substr(0, path.length() - 4);
-  size_t poslastdot = outputPath.rfind('.');
-  outputPath = path.substr(0, poslastdot) + "_decompressed" +
-               outputPath.substr(poslastdot);
+  std::string basePath = path.substr(0, path.length() - 4);
+  size_t lastDotIndex = basePath.rfind('.');
+  size_t lastSlashIndex = basePath.find_last_of("/\\");
 
-  FILE *outputFile = fopen(outputPath.c_str(), "w+b");
+  std::string outputPath;
+  if (lastDotIndex != std::string::npos &&
+      (lastSlashIndex == std::string::npos || lastDotIndex > lastSlashIndex)) {
+    outputPath = basePath.substr(0, lastDotIndex) + "_decompressed" +
+                 basePath.substr(lastDotIndex);
+  } else {
+    outputPath = basePath + "_decompressed";
+  }
+
+  // std::string outputPath = path.substr(0, path.length() - 4);
+  // size_t poslastdot = outputPath.rfind('.');
+  // outputPath = path.substr(0, poslastdot) + "_decompressed" +
+  //              outputPath.substr(poslastdot);
+
+  FILE* outputFile = fopen(outputPath.c_str(), "w+b");
   if (outputFile == nullptr) {
     std::cerr << "Failed to output input file." << std::endl;
     return;
   }
 
   // Traverse the Huffman tree to decode the input data
-  HuffmanTreeNode *node = root;
+  HuffmanTreeNode* node = root;
   uint32_t sizeOfPath;
   while (fread(&sizeOfPath, sizeof(uint32_t), 1, f)) {
     bool broken;
-    for (int i = 0; i < sizeOfPath; i++) {
+    for (uint32_t i = 0; i < sizeOfPath; i++) {
       broken = false;
 
       uint8_t byte;
@@ -398,10 +430,10 @@ void fReadDecodeCreate(FILE *&f, HuffmanTreeNode *&root, std::string &path) {
   fclose(outputFile);
 }
 
-void fDecompress(std::string &path, void (*fDisplayProgress)(int)) {
+void fDecompress(std::string& path, void (*fDisplayProgress)(int)) {
   // Step 1: Create the root and onpen the file
-  HuffmanTreeNode *root = new HuffmanTreeNode('\0', 0);
-  FILE *f = fopen(path.c_str(), "r+b");
+  HuffmanTreeNode* root = new HuffmanTreeNode('\0', 0);
+  FILE* f = fopen(path.c_str(), "r+b");
 
   if (!f) {
     std::cerr << "Failed to open file for reading." << std::endl;
@@ -417,7 +449,7 @@ void fDecompress(std::string &path, void (*fDisplayProgress)(int)) {
 
   // Step 3: Read encoded info and decode into a new file
   fReadDecodeCreate(f, root, path);
-  free(root);
+  destroyTree(root);
 
   fDisplayProgress(75);  // Step 3 of 4
 
