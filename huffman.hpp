@@ -143,6 +143,13 @@ std::list<HuffmanTreeNode*> fOrderedList(std::vector<InfoByte>& arr) {
 }
 
 HuffmanTreeNode* fListToTree(std::list<HuffmanTreeNode*> list) {
+  if (list.empty()) return nullptr;
+
+  if (list.size() == 1) {
+    HuffmanTreeNode* root = list.front();
+    return new HuffmanTreeNode('\0', root->freq, root, nullptr);
+  }
+
   // Loop until there is only one node left in the list
   while (list.size() > 1) {
     // Pop the first two nodes from the list
@@ -291,6 +298,13 @@ void fCompress(std::string& path, void (*fDisplayProgress)(int)) {
   std::list<HuffmanTreeNode*> list = fOrderedList(arr);
 
   fDisplayProgress(40);  // Step 2 of 5
+
+  if (list.empty()) {
+    fDisplayProgress(80);
+    fSaveCompressedFile(path, arr);
+    fDisplayProgress(100);
+    return;
+  }
 
   // Step 3: Convert the list into a tree
   HuffmanTreeNode* root = fListToTree(list);
