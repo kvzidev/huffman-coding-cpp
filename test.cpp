@@ -162,6 +162,33 @@ void testNoExtension() {
   std::remove(decompressedPath.c_str());
 }
 
+void testNullRootWithPositiveBytes() {
+  std::string path = "test_null_root.huf";
+
+  FILE* f = fopen(path.c_str(), "wb");
+  if (!f) {
+    return;
+  }
+  uint8_t dummyByte = 0xAA;
+  fwrite(&dummyByte, sizeof(uint8_t), 1, f);
+  fclose(f);
+
+  f = fopen(path.c_str(), "rb");
+  if (!f) {
+    return;
+  }
+  HuffmanTreeNode* nullRoot = nullptr;
+  uint64_t totalBytes = 10;
+
+  fReadDecodeCreate(f, nullRoot, path, totalBytes);
+
+  fclose(f);
+  std::remove(path.c_str());
+  std::remove("test_null_root_decompressed");
+
+  ASSERT_EQUAL("test_null_root", true, true);
+}
+
 int main() {
   testEncodeDecode();
   testEmpty();
@@ -170,6 +197,7 @@ int main() {
   testNoExtension();
   testBigPayload();
   testHugePayload();
+  testNullRootWithPositiveBytes();
 
   if (testFailures > 0) {
     std::cerr << "Tests failed: " << testFailures << "\n";

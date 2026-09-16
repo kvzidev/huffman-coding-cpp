@@ -39,11 +39,9 @@ class BitWriter {
   FILE*& outputFile;
   uint8_t buffer;
   int count;
-  uint32_t bitLength;
 
  public:
-  BitWriter(FILE*& outputFile)
-      : outputFile(outputFile), buffer(0), count(0), bitLength(0) {}
+  BitWriter(FILE*& outputFile) : outputFile(outputFile), buffer(0), count(0) {}
 
   void writeBit(bool bit) {
     buffer <<= 1;
@@ -280,7 +278,9 @@ void fCompress(std::string& path, void (*fDisplayProgress)(int)) {
   std::vector<InfoByte> arr;
 
   // Step 1: Count how many times each byte appears
-  fByteCounter(path, arr);
+  if (fByteCounter(path, arr) != 0) {
+    return;
+  };
 
   fDisplayProgress(20);  // Step 1 of 5
 
@@ -346,6 +346,10 @@ HuffmanTreeNode* fRebuildTree(FILE*& f, uint64_t& totalBytes) {
 
 void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path,
                        uint64_t totalBytes) {
+  if (!root && totalBytes > 0) {
+    return;
+  }
+
   // Open the output file for writing
   std::string basePath = path.substr(0, path.length() - 4);
   size_t lastDotIndex = basePath.rfind('.');
