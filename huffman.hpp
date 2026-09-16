@@ -98,7 +98,7 @@ void destroyTree(HuffmanTreeNode* node) {
 // ============================================================================================================
 
 bool fByteCounter(std::string& path, std::vector<InfoByte>& arr) {
-  FILE* f = fopen(path.c_str(), "r+b");
+  FILE* f = fopen(path.c_str(), "rb");
 
   if (!f) {
     std::cerr << "Failed to open " << path << std::endl;
@@ -403,7 +403,7 @@ void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path,
 
 void fDecompress(std::string& path, void (*fDisplayProgress)(int)) {
   // Step 1: Open the file
-  FILE* f = fopen(path.c_str(), "r+b");
+  FILE* f = fopen(path.c_str(), "rb");
 
   if (!f) {
     std::cerr << "Failed to open file for reading." << std::endl;
