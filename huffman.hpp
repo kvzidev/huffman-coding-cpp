@@ -380,11 +380,6 @@ void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path) {
     outputPath = basePath + "_decompressed";
   }
 
-  // std::string outputPath = path.substr(0, path.length() - 4);
-  // size_t poslastdot = outputPath.rfind('.');
-  // outputPath = path.substr(0, poslastdot) + "_decompressed" +
-  //              outputPath.substr(poslastdot);
-
   FILE* outputFile = fopen(outputPath.c_str(), "w+b");
   if (outputFile == nullptr) {
     std::cerr << "Failed to output input file." << std::endl;
