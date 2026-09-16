@@ -210,20 +210,21 @@ bool fGenerateHuffmanCode(HuffmanTreeNode*& root, std::vector<InfoByte>& arr) {
 }
 
 void fWriteHeader(FILE*& outputFile, std::vector<InfoByte>& arr) {
-  // Write the array size
-  int arraysize = arr.size();
-  fwrite(&arraysize, sizeof(int), 1, outputFile);
+  uint16_t activeSymbolCount = 0;
+  for (const auto& byteInfo : arr) {
+    if (byteInfo.n > 0) {
+      activeSymbolCount++;
+    }
+  }
+
+  // Write the array
+  fwrite(&activeSymbolCount, sizeof(uint16_t), 1, outputFile);
 
   // Write the frequency table to the output file in binary format
-  for (size_t i = 0; i < arr.size(); i++) {
-    fwrite(&arr[i].symbol, sizeof(uint8_t), 1, outputFile);
-    fwrite(&arr[i].n, sizeof(uint64_t), 1, outputFile);
-    fwrite(&arr[i].vsize, sizeof(uint64_t), 1, outputFile);
-
-    // Read the code variable one bool at a time
-    for (uint64_t j = 0; j < arr[i].vsize; j++) {
-      bool b = arr[i].code[j];
-      fwrite(&b, sizeof(bool), 1, outputFile);
+  for (const auto& byteInfo : arr) {
+    if (byteInfo.n > 0) {
+      fwrite(&byteInfo.symbol, sizeof(uint8_t), 1, outputFile);
+      fwrite(&byteInfo.n, sizeof(uint64_t), 1, outputFile);
     }
   }
 }
@@ -316,51 +317,29 @@ void fCompress(std::string& path, void (*fDisplayProgress)(int)) {
 // ============================================================================================
 // ============================================================================================================
 
-void fRebuildTree(FILE*& f, HuffmanTreeNode*& root, uint64_t& totalBytes) {
-  int arraysize;
-  fread(&arraysize, sizeof(int), 1, f);
+HuffmanTreeNode* fRebuildTree(FILE*& f, uint64_t& totalBytes) {
+  uint16_t activeSymbolCount = 0;
+  if (fread(&activeSymbolCount, sizeof(uint16_t), 1, f) != 1) {
+    return nullptr;
+  }
 
-  // Read the frequency table from the header
   totalBytes = 0;
-  std::vector<InfoByte> arr;
-  for (int i = 0; i < arraysize; i++) {
-    arr.push_back({0, 0, 0, {}});
+  std::vector<InfoByte> arr(256, {0, 0, 0, {}});
+
+  for (int i = 0; i < activeSymbolCount; i++) {
+    uint8_t symbol = 0;
+    uint64_t freq = 0;
+
+    fread(&symbol, sizeof(uint8_t), 1, f);
+    fread(&freq, sizeof(uint64_t), 1, f);
+
+    arr[symbol].symbol = symbol;
+    arr[symbol].n = freq;
+    totalBytes += freq;
   }
 
-  for (int i = 0; i < arraysize; i++) {
-    fread(&arr[i].symbol, sizeof(uint8_t), 1, f);
-    fread(&arr[i].n, sizeof(uint64_t), 1, f);
-    fread(&arr[i].vsize, sizeof(uint64_t), 1, f);
-    totalBytes += arr[i].n;
-
-    // Read the code variable one bool at a time
-    for (uint64_t j = 0; j < arr[i].vsize; j++) {
-      bool b;
-      fread(&b, sizeof(bool), 1, f);
-      arr[i].code.push_back(b);
-    }
-  }
-
-  for (size_t i = 0; i < arr.size(); i++) {
-    // If it has a frequency
-    if (arr[i].n > 0) {
-      HuffmanTreeNode* node = root;
-
-      for (size_t j = 0; j < arr[i].code.size(); j++) {
-        if (arr[i].code[j]) {
-          if (node->right == nullptr)
-            node->right = new HuffmanTreeNode('\0', 0);
-          node = node->right;
-        } else {
-          if (node->left == nullptr) node->left = new HuffmanTreeNode('\0', 0);
-          node = node->left;
-        }
-      }
-
-      node->symbol = arr[i].symbol;
-      node->freq = arr[i].n;
-    }
-  }
+  std::list<HuffmanTreeNode*> list = fOrderedList(arr);
+  return fListToTree(list);
 }
 
 void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path,
@@ -423,8 +402,7 @@ void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path,
 }
 
 void fDecompress(std::string& path, void (*fDisplayProgress)(int)) {
-  // Step 1: Create the root and onpen the file
-  HuffmanTreeNode* root = new HuffmanTreeNode('\0', 0);
+  // Step 1: Open the file
   FILE* f = fopen(path.c_str(), "r+b");
 
   if (!f) {
@@ -436,7 +414,7 @@ void fDecompress(std::string& path, void (*fDisplayProgress)(int)) {
 
   // Step 2: Rebuild the tree
   uint64_t totalBytes = 0;
-  fRebuildTree(f, root, totalBytes);
+  HuffmanTreeNode* root = fRebuildTree(f, totalBytes);
 
   fDisplayProgress(50);  // Step 2 of 4
 
