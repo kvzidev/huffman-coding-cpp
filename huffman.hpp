@@ -404,24 +404,21 @@ void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path) {
   HuffmanTreeNode* node = root;
   uint32_t sizeOfPath;
   while (fread(&sizeOfPath, sizeof(uint32_t), 1, f)) {
-    bool broken;
-    for (uint32_t i = 0; i < sizeOfPath; i++) {
-      broken = false;
-
+    uint32_t bitsProcessed = 0;
+    while (bitsProcessed < sizeOfPath) {
       uint8_t byte;
       fread(&byte, sizeof(uint8_t), 1, f);
 
-      for (int j = 7; j >= 0 && !broken; j--) {
-        bool bit = ((byte >> j) & 1);
+      for (int bitIndex = 7; bitIndex >= 0 && bitsProcessed < sizeOfPath;
+           bitIndex--) {
+        bool bit = ((byte >> bitIndex) & 1);
 
         if (bit)
           node = node->right;
         else
           node = node->left;
 
-        i++;
-
-        if (node == nullptr) std::cout << std::endl;
+        bitsProcessed++;
 
         if (node->left == nullptr && node->right == nullptr) {
           // Found a leaf node, so write the symbol to the output file
@@ -429,7 +426,6 @@ void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path) {
 
           // Reset the Huffman tree traversal to the root node
           node = root;
-          broken = true;
         }
       }
     }
