@@ -109,6 +109,24 @@ void testBigPayload() {
   runTest("test_big_payload", testData.data(), testData.size());
 }
 
+void testHugePayload() {
+  std::string testData = "";
+
+  for (int i = 0; i < 10000; ++i) {
+    testData +=
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+        "Sed do eiusmod tempor incididunt ut labore et dolore magna "
+        "aliqua. Ut enim ad minim veniam, quis nostrud exercitation "
+        "ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis "
+        "aute irure dolor in reprehenderit in voluptate velit esse "
+        "cillum dolore eu fugiat nulla pariatur. Excepteur sint "
+        "occaecat cupidatat non proident, sunt in culpa qui officia "
+        "deserunt mollit anim id est laborum.";
+  }
+
+  runTest("test_huge_payload", testData.data(), testData.size());
+}
+
 void testBinary() {
   uint8_t binaryData[256];
   for (int i = 0; i < 256; i++) {
@@ -151,6 +169,7 @@ int main() {
   testBinary();
   testNoExtension();
   testBigPayload();
+  testHugePayload();
 
   if (testFailures > 0) {
     std::cerr << "Tests failed: " << testFailures << "\n";
