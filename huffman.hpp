@@ -15,7 +15,6 @@
 struct InfoByte {
   uint8_t symbol;
   uint64_t n;              // Amount of times each byte is repeated
-  uint64_t vsize;          // Size of the vector
   std::vector<bool> code;  // Code
 };
 
@@ -34,14 +33,6 @@ struct HuffmanTreeNode {
   bool operator<(const HuffmanTreeNode& other) const {
     return freq < other.freq;
   }
-};
-
-struct HuffmanTreeInfo {
-  uint64_t numNodes;
-  uint64_t depth;
-
-  HuffmanTreeInfo(uint64_t numNodes, uint64_t depth)
-      : numNodes(numNodes), depth(depth) {};
 };
 
 class BitWriter {
@@ -74,10 +65,25 @@ class BitWriter {
       saveBuffer();
     }
   }
+};
 
-  void writeBitLength() { fwrite(&bitLength, sizeof(uint32_t), 1, outputFile); }
+class BitReader {
+ private:
+  FILE*& inputFile;
+  uint8_t buffer;
+  int count;
 
-  void setBitLength(uint32_t length) { bitLength = length; }
+ public:
+  BitReader(FILE*& inputFile) : inputFile(inputFile), buffer(0), count(0) {}
+
+  bool readBit() {
+    if (count == 0) {
+      fread(&buffer, sizeof(uint8_t), 1, inputFile);
+      count = 8;
+    }
+    count--;
+    return (buffer >> count) & 1;
+  }
 };
 
 // ============================================================================================================
@@ -107,11 +113,11 @@ bool fByteCounter(std::string& path, std::vector<InfoByte>& arr) {
 
   // Count
   uint8_t symbol;
-  while (fread(&symbol, sizeof(symbol), 1, f)) {
+  while (fread(&symbol, sizeof(uint8_t), 1, f)) {
     if (symbol >= arr.size()) {
       int i = arr.size();
       while (i <= symbol) {
-        arr.push_back({0, 0, 0, {}});
+        arr.push_back({0, 0, {}});
         i++;
       }
     }
@@ -184,7 +190,6 @@ bool _fGenerateHuffmanCode(HuffmanTreeNode* node, std::vector<bool>& code,
     if (node->symbol >= arr.size()) return false;
 
     arr[node->symbol].code = code;
-    arr[node->symbol].vsize = code.size();
     return true;
   }
 
@@ -324,7 +329,7 @@ HuffmanTreeNode* fRebuildTree(FILE*& f, uint64_t& totalBytes) {
   }
 
   totalBytes = 0;
-  std::vector<InfoByte> arr(256, {0, 0, 0, {}});
+  std::vector<InfoByte> arr(256, {0, 0, {}});
 
   for (int i = 0; i < activeSymbolCount; i++) {
     uint8_t symbol = 0;
@@ -372,28 +377,24 @@ void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path,
   // Traverse the Huffman tree to decode the input data
   HuffmanTreeNode* node = root;
   uint64_t decodedBytes = 0;
-  uint8_t byte;
+  BitReader bitReader(f);
 
-  while (decodedBytes < totalBytes &&
-         fread(&byte, sizeof(uint8_t), 1, f) == 1) {
-    for (int bitIndex = 7; bitIndex >= 0 && decodedBytes < totalBytes;
-         bitIndex--) {
-      bool bit = ((byte >> bitIndex) & 1);
+  while (decodedBytes < totalBytes) {
+    bool bit = bitReader.readBit();
 
-      if (bit) {
-        node = node->right;
-      } else {
-        node = node->left;
-      }
+    if (bit) {
+      node = node->right;
+    } else {
+      node = node->left;
+    }
 
-      if (node->left == nullptr && node->right == nullptr) {
-        // Found a leaf node, so write the symbol to the output file
-        fwrite(&node->symbol, sizeof(uint8_t), 1, outputFile);
-        decodedBytes++;
+    if (node->left == nullptr && node->right == nullptr) {
+      // Found a leaf node, so write the symbol to the output file
+      fwrite(&node->symbol, sizeof(uint8_t), 1, outputFile);
+      decodedBytes++;
 
-        // Reset the Huffman tree traversal to the root node
-        node = root;
-      }
+      // Reset the Huffman tree traversal to the root node
+      node = root;
     }
   }
 
