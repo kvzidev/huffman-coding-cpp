@@ -236,16 +236,17 @@ void fWriteHeader(FILE*& outputFile, std::vector<InfoByte>& arr) {
 void fSaveCompressedFile(std::string& path, std::vector<InfoByte>& arr) {
   std::string outputPath = path + ".huf";
 
-  FILE* inputFile = fopen(path.c_str(), "r+b");
+  FILE* inputFile = fopen(path.c_str(), "rb");
 
   if (inputFile == nullptr) {
     std::cerr << "Failed to open input file." << std::endl;
     return;
   }
 
-  FILE* outputFile = fopen(outputPath.c_str(), "w+b");
+  FILE* outputFile = fopen(outputPath.c_str(), "wb");
   if (outputFile == nullptr) {
     std::cerr << "Failed to output input file." << std::endl;
+    fclose(inputFile);
     return;
   }
 
@@ -262,19 +263,10 @@ void fSaveCompressedFile(std::string& path, std::vector<InfoByte>& arr) {
   uint8_t symbol;
   while (fread(&symbol, sizeof(uint8_t), 1, inputFile) == 1) {
     // Get the Huffman code for the symbol
-    std::vector<bool> code = arr[symbol].code;
-
-    // Write the length of the code to the BitWriter object
-    uint32_t sizeOfPath = code.size();
-    bitWriter.setBitLength(sizeOfPath);
-    bitWriter.writeBitLength();
-
-    // Write the code to the output file using the BitWriter object
+    const std::vector<bool>& code = arr[symbol].code;
     for (bool bit : code) {
       bitWriter.writeBit(bit);
     }
-
-    bitWriter.flush();
   }
 
   // Flush any remaining bits in the BitWriter buffer to the output file
@@ -329,11 +321,12 @@ void fCompress(std::string& path, void (*fDisplayProgress)(int)) {
 // ============================================================================================
 // ============================================================================================================
 
-void fRebuildTree(FILE*& f, HuffmanTreeNode*& root) {
+void fRebuildTree(FILE*& f, HuffmanTreeNode*& root, uint64_t& totalBytes) {
   int arraysize;
   fread(&arraysize, sizeof(int), 1, f);
 
   // Read the frequency table from the header
+  totalBytes = 0;
   std::vector<InfoByte> arr;
   for (int i = 0; i < arraysize; i++) {
     arr.push_back({0, 0, 0, {}});
@@ -343,6 +336,7 @@ void fRebuildTree(FILE*& f, HuffmanTreeNode*& root) {
     fread(&arr[i].symbol, sizeof(uint8_t), 1, f);
     fread(&arr[i].n, sizeof(uint64_t), 1, f);
     fread(&arr[i].vsize, sizeof(uint64_t), 1, f);
+    totalBytes += arr[i].n;
 
     // Read the code variable one bool at a time
     if (arr[i].vsize == 0) {
@@ -379,7 +373,8 @@ void fRebuildTree(FILE*& f, HuffmanTreeNode*& root) {
   }
 }
 
-void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path) {
+void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path,
+                       uint64_t totalBytes) {
   // Open the output file for writing
   std::string basePath = path.substr(0, path.length() - 4);
   size_t lastDotIndex = basePath.rfind('.');
@@ -394,39 +389,41 @@ void fReadDecodeCreate(FILE*& f, HuffmanTreeNode*& root, std::string& path) {
     outputPath = basePath + "_decompressed";
   }
 
-  FILE* outputFile = fopen(outputPath.c_str(), "w+b");
+  FILE* outputFile = fopen(outputPath.c_str(), "wb");
   if (outputFile == nullptr) {
     std::cerr << "Failed to output input file." << std::endl;
     return;
   }
 
+  if (totalBytes == 0) {
+    fclose(outputFile);
+    return;
+  }
+
   // Traverse the Huffman tree to decode the input data
   HuffmanTreeNode* node = root;
-  uint32_t sizeOfPath;
-  while (fread(&sizeOfPath, sizeof(uint32_t), 1, f)) {
-    uint32_t bitsProcessed = 0;
-    while (bitsProcessed < sizeOfPath) {
-      uint8_t byte;
-      fread(&byte, sizeof(uint8_t), 1, f);
+  uint64_t decodedBytes = 0;
+  uint8_t byte;
 
-      for (int bitIndex = 7; bitIndex >= 0 && bitsProcessed < sizeOfPath;
-           bitIndex--) {
-        bool bit = ((byte >> bitIndex) & 1);
+  while (decodedBytes < totalBytes &&
+         fread(&byte, sizeof(uint8_t), 1, f) == 1) {
+    for (int bitIndex = 7; bitIndex >= 0 && decodedBytes < totalBytes;
+         bitIndex--) {
+      bool bit = ((byte >> bitIndex) & 1);
 
-        if (bit)
-          node = node->right;
-        else
-          node = node->left;
+      if (bit) {
+        node = node->right;
+      } else {
+        node = node->left;
+      }
 
-        bitsProcessed++;
+      if (node->left == nullptr && node->right == nullptr) {
+        // Found a leaf node, so write the symbol to the output file
+        fwrite(&node->symbol, sizeof(uint8_t), 1, outputFile);
+        decodedBytes++;
 
-        if (node->left == nullptr && node->right == nullptr) {
-          // Found a leaf node, so write the symbol to the output file
-          fwrite(&node->symbol, sizeof(uint8_t), 1, outputFile);
-
-          // Reset the Huffman tree traversal to the root node
-          node = root;
-        }
+        // Reset the Huffman tree traversal to the root node
+        node = root;
       }
     }
   }
@@ -448,12 +445,13 @@ void fDecompress(std::string& path, void (*fDisplayProgress)(int)) {
   fDisplayProgress(25);  // Step 1 of 4
 
   // Step 2: Rebuild the tree
-  fRebuildTree(f, root);
+  uint64_t totalBytes = 0;
+  fRebuildTree(f, root, totalBytes);
 
   fDisplayProgress(50);  // Step 2 of 4
 
   // Step 3: Read encoded info and decode into a new file
-  fReadDecodeCreate(f, root, path);
+  fReadDecodeCreate(f, root, path, totalBytes);
   destroyTree(root);
 
   fDisplayProgress(75);  // Step 3 of 4
