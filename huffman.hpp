@@ -221,11 +221,6 @@ void fWriteHeader(FILE*& outputFile, std::vector<InfoByte>& arr) {
     fwrite(&arr[i].vsize, sizeof(uint64_t), 1, outputFile);
 
     // Read the code variable one bool at a time
-    if (arr[i].vsize == 0) {
-      std::vector<bool> v = {};
-      fwrite(&v, sizeof(v), 1, outputFile);
-      continue;
-    }
     for (uint64_t j = 0; j < arr[i].vsize; j++) {
       bool b = arr[i].code[j];
       fwrite(&b, sizeof(bool), 1, outputFile);
@@ -339,11 +334,6 @@ void fRebuildTree(FILE*& f, HuffmanTreeNode*& root, uint64_t& totalBytes) {
     totalBytes += arr[i].n;
 
     // Read the code variable one bool at a time
-    if (arr[i].vsize == 0) {
-      std::vector<bool> v = {};
-      fread(&v, sizeof(v), 1, f);
-      continue;
-    }
     for (uint64_t j = 0; j < arr[i].vsize; j++) {
       bool b;
       fread(&b, sizeof(bool), 1, f);
